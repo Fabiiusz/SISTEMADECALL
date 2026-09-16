@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Meet Sales Copilot - permissão do microfone</title>
+    <link rel="stylesheet" href="../options/options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Permissão do microfone</h1>
+      <section>
+        <p>
+          O copiloto precisa ouvir a <strong>sua</strong> voz pelo microfone para saber quais perguntas do playbook
+          você já fez. O áudio do lead vem da aba do Meet e não precisa de permissão extra.
+        </p>
+        <p>Clique no botão abaixo e escolha <strong>Permitir</strong> quando o Chrome perguntar.</p>
+        <div class="row">
+          <button id="ask" type="button" class="btn btn-primary">Conceder acesso ao microfone</button>
+        </div>
+        <p id="result" class="result"></p>
+        <p class="muted" id="help" hidden>
+          Se o Chrome não perguntou nada, a permissão pode ter sido bloqueada antes. Clique no ícone à esquerda
+          da barra de endereço desta página, procure "Microfone" e mude para "Permitir". Depois clique no botão de novo.
+        </p>
+      </section>
+    </main>
+    <script src="permission.js"></script>
+  </body>
+</html>

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meet Sales Copilot - Opções</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Meet Sales Copilot - Opções</h1>
+      <p class="muted">
+        MVP para uso pessoal: a chave fica salva apenas no seu Chrome (chrome.storage.local) e é enviada
+        somente para a API do Google. Não compartilhe a chave.
+      </p>
+
+      <section>
+        <h2>Chave da API do Gemini</h2>
+        <p class="muted">Crie a sua chave em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+        <div class="row">
+          <input id="apiKey" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+          <button id="toggleKey" type="button" class="btn">Mostrar</button>
+          <button id="testKey" type="button" class="btn">Testar chave</button>
+        </div>
+        <p id="keyResult" class="result"></p>
+      </section>
+
+      <section>
+        <h2>Modelos</h2>
+        <label>Modelo da Live API (transcrição)
+          <input id="liveModel" type="text" placeholder="gemini-3.8-live" spellcheck="false" />
+        </label>
+        <label>Modelo de análise (JSON do copiloto)
+          <input id="analysisModel" type="text" placeholder="gemini-3.8-flash" spellcheck="false" />
+        </label>
+        <p class="muted">Deixe em branco para usar os padrões. Consulte os modelos disponíveis na sua conta com o botão "Testar chave".</p>
+      </section>
+
+      <section>
+        <h2>Playbook personalizado (opcional)</h2>
+        <p class="muted">
+          Por padrão a extensão usa o arquivo <code>playbook.json</code> da pasta da extensão. Se colar um JSON
+          válido aqui, ele substitui o arquivo sem precisar recarregar a extensão.
+        </p>
+        <textarea id="playbookOverride" rows="14" spellcheck="false" placeholder='{ "etapas": [...], "objecoes": [...] }'></textarea>
+        <div class="row">
+          <button id="validatePlaybook" type="button" class="btn">Validar</button>
+          <button id="loadDefaultPlaybook" type="button" class="btn">Carregar o playbook.json no editor</button>
+          <button id="clearPlaybook" type="button" class="btn">Usar o arquivo padrão</button>
+        </div>
+        <p id="playbookResult" class="result"></p>
+      </section>
+
+      <div class="actions">
+        <button id="save" type="button" class="btn btn-primary">Salvar</button>
+        <span id="saveResult" class="result"></span>
+      </div>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

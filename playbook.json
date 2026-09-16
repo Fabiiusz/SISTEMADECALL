@@ -1,0 +1,70 @@
+{
+  "nome": "Playbook de vendas - exemplo",
+  "versao": 1,
+  "instrucoes_gerais": "Reunião de vendas consultiva B2B. O vendedor conduz a conversa por etapas, faz perguntas de diagnóstico antes de apresentar e só fecha depois de confirmar valor.",
+  "etapas": [
+    {
+      "id": "abertura",
+      "nome": "Abertura",
+      "descricao": "Quebra-gelo, alinhamento de agenda e confirmação do tempo disponível.",
+      "perguntas": [
+        { "id": "ab_tempo", "texto": "Você tem os 30 minutos combinados para a nossa conversa hoje?" },
+        { "id": "ab_agenda", "texto": "Posso te contar rapidamente como pensei a nossa conversa e você me diz se faz sentido?" },
+        { "id": "ab_motivo", "texto": "O que te fez aceitar essa reunião? O que você espera tirar dela?" }
+      ]
+    },
+    {
+      "id": "diagnostico",
+      "nome": "Diagnóstico",
+      "descricao": "Entender o cenário atual, a dor, o impacto e o processo de decisão.",
+      "perguntas": [
+        { "id": "dg_cenario", "texto": "Como funciona hoje o processo de [área do problema] na sua empresa?" },
+        { "id": "dg_dor", "texto": "Qual é o maior problema ou gargalo que você enfrenta nesse processo hoje?" },
+        { "id": "dg_impacto", "texto": "Quanto esse problema custa para a empresa, em tempo, dinheiro ou oportunidades perdidas?" },
+        { "id": "dg_tentativas", "texto": "O que vocês já tentaram para resolver isso?" },
+        { "id": "dg_decisao", "texto": "Além de você, quem mais participa da decisão de contratar uma solução como essa?" },
+        { "id": "dg_prazo", "texto": "Existe um prazo ou um evento que torna a solução urgente?" }
+      ]
+    },
+    {
+      "id": "apresentacao",
+      "nome": "Apresentação",
+      "descricao": "Mostrar a solução conectada às dores levantadas e validar o encaixe.",
+      "perguntas": [
+        { "id": "ap_conexao", "texto": "Faz sentido para você como isso resolve o problema de [dor citada]?" },
+        { "id": "ap_duvidas", "texto": "Que dúvidas ficaram sobre como a solução funciona no seu dia a dia?" },
+        { "id": "ap_valor", "texto": "Se isso funcionar como mostrei, qual seria o impacto para você e para o time?" }
+      ]
+    },
+    {
+      "id": "fechamento",
+      "nome": "Fechamento",
+      "descricao": "Confirmar próximos passos, investimento e compromisso.",
+      "perguntas": [
+        { "id": "fc_proximo", "texto": "Qual seria o próximo passo ideal do seu lado para avançarmos?" },
+        { "id": "fc_investimento", "texto": "O investimento de [valor] está dentro do que você esperava?" },
+        { "id": "fc_data", "texto": "Podemos já agendar a data de início ou a próxima reunião com quem decide junto com você?" }
+      ]
+    }
+  ],
+  "objecoes": [
+    {
+      "id": "preco",
+      "tipo": "Preço",
+      "gatilhos": ["está caro", "muito caro", "não tenho orçamento", "acima do que eu esperava", "o preço"],
+      "resposta": "Entendo, e faz sentido olhar o investimento com cuidado. Deixa eu te perguntar: caro em relação a quê? Se a gente considerar que hoje [dor citada] custa [impacto] por mês, o retorno se paga em [prazo]. O que precisaria estar incluído para você sentir que o valor está justo?"
+    },
+    {
+      "id": "vou_pensar",
+      "tipo": "Vou pensar",
+      "gatilhos": ["vou pensar", "preciso pensar", "deixa eu analisar", "te retorno depois", "vou avaliar"],
+      "resposta": "Claro, é uma decisão importante. Só para eu te ajudar melhor: o que exatamente você precisa pensar? Normalmente é sobre o valor, o momento ou se a solução realmente resolve o problema. Se a gente esclarecer isso agora, você sai da reunião com tudo o que precisa para decidir."
+    },
+    {
+      "id": "socio",
+      "tipo": "Preciso falar com meu sócio",
+      "gatilhos": ["falar com meu sócio", "consultar o sócio", "meu sócio", "preciso alinhar com", "não decido sozinho"],
+      "resposta": "Perfeito, faz todo sentido envolver seu sócio. Para que essa conversa seja produtiva, o que você acha de marcarmos uma reunião curta com ele ainda essa semana? Assim eu respondo às dúvidas dele direto e você não precisa fazer o papel de vendedor. Qual dia funciona melhor para vocês dois?"
+    }
+  ]
+}

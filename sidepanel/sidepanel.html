@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meet Sales Copilot</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-dot" id="statusDot" aria-hidden="true"></span>
+        <div>
+          <h1>Sales Copilot</h1>
+          <p class="status-text" id="statusText">Pronto para iniciar</p>
+        </div>
+      </div>
+      <button id="toggleBtn" class="btn btn-primary" type="button">Iniciar copiloto</button>
+    </header>
+
+    <div id="banner" class="banner" hidden>
+      <span id="bannerText"></span>
+      <div class="banner-actions">
+        <button id="bannerAction" class="btn btn-small" type="button" hidden></button>
+        <button id="bannerClose" class="btn-icon" type="button" aria-label="Fechar aviso">×</button>
+      </div>
+    </div>
+
+    <main>
+      <section class="card objection" id="objectionCard" hidden>
+        <div class="card-head">
+          <span class="tag">Objeção detectada</span>
+          <div class="card-tools">
+            <button id="copyObjection" class="btn-icon" type="button" title="Copiar resposta">⧉</button>
+            <button id="dismissObjection" class="btn-icon" type="button" title="Dispensar">×</button>
+          </div>
+        </div>
+        <h2 id="objectionType"></h2>
+        <p id="objectionAnswer" class="objection-answer"></p>
+      </section>
+
+      <section class="card">
+        <div class="section-title">Etapa da reunião</div>
+        <ol class="stages" id="stages"></ol>
+        <p class="stage-desc" id="stageDesc"></p>
+      </section>
+
+      <section class="card next">
+        <div class="section-title">Próxima pergunta sugerida</div>
+        <p id="nextQuestion" class="next-question">Inicie o copiloto para receber sugestões.</p>
+      </section>
+
+      <section class="card">
+        <div class="section-title">
+          Checklist de perguntas
+          <span class="counter" id="checklistCounter"></span>
+        </div>
+        <div id="checklist" class="checklist"></div>
+      </section>
+
+      <details class="card transcript" id="transcriptDetails">
+        <summary>
+          <span>Transcrição ao vivo</span>
+          <span class="levels">
+            <span class="level"><span class="level-label">Lead</span><span class="meter"><span id="levelLead"></span></span></span>
+            <span class="level"><span class="level-label">Você</span><span class="meter"><span id="levelSeller"></span></span></span>
+          </span>
+        </summary>
+        <div id="transcript" class="transcript-body">
+          <p class="muted" id="transcriptEmpty">Nada transcrito ainda.</p>
+        </div>
+      </details>
+    </main>
+
+    <footer>
+      <span id="playbookName" class="muted"></span>
+      <a href="#" id="openOptions">Opções</a>
+    </footer>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>
