@@ -12,6 +12,10 @@ import { PlaybookAnalyzer } from './analyzer.js';
 
 const SPEAKERS = { tab: 'LEAD', mic: 'VENDEDOR' };
 const ANALYSIS_DEBOUNCE_MS = 2500;
+// Quando quem acabou de falar foi o LEAD, a fala pode ser uma objeção e o
+// vendedor precisa da resposta na hora, então a análise corre mais cedo.
+const LEAD_DEBOUNCE_MS = 1200;
+const LEAD_MIN_INTERVAL_MS = 3500;
 // A análise não precisa rodar a cada fala: isso gasta cota à toa e provoca
 // erro 503 por excesso de chamadas. Uma a cada 8 segundos acompanha bem uma
 // conversa falada.
@@ -286,7 +290,7 @@ function flushPartial(speaker) {
   session.transcript.push(line);
   if (session.transcript.length > 400) session.transcript.splice(0, session.transcript.length - 400);
   broadcast({ type: 'transcript', line });
-  scheduleAnalysis();
+  scheduleAnalysis(speaker === 'LEAD');
 }
 
 function onChannelStatus(speaker, st) {
@@ -310,10 +314,12 @@ function onChannelFatal(speaker, err) {
 
 // ---------- Análise ----------
 
-function scheduleAnalysis() {
+function scheduleAnalysis(urgent = false) {
   clearTimeout(session.analysisTimer);
   const sinceLast = Date.now() - session.lastAnalysisAt;
-  const wait = Math.max(ANALYSIS_DEBOUNCE_MS, MIN_ANALYSIS_INTERVAL_MS - sinceLast);
+  const debounce = urgent ? LEAD_DEBOUNCE_MS : ANALYSIS_DEBOUNCE_MS;
+  const minInterval = urgent ? LEAD_MIN_INTERVAL_MS : MIN_ANALYSIS_INTERVAL_MS;
+  const wait = Math.max(debounce, minInterval - sinceLast);
   session.analysisTimer = setTimeout(runAnalysis, wait);
 }
 

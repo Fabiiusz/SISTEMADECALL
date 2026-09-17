@@ -3,6 +3,10 @@ import { validatePlaybook, loadDefaultPlaybook } from '../shared/playbook.js';
 
 const $ = (id) => document.getElementById(id);
 
+// Nomes de modelo que a conta realmente tem, usados para sugerir e para avisar
+// quando alguém digita um modelo inexistente (o que quebra a análise em uso).
+let knownModels = [];
+
 init();
 
 async function init() {
@@ -30,6 +34,42 @@ async function init() {
     setResult('playbookResult', 'O arquivo playbook.json da extensão será usado após salvar.', 'ok');
   });
   $('save').addEventListener('click', save);
+  if (s.apiKey) loadModelList(s.apiKey).then(checkConfiguredModels).catch(() => {});
+}
+
+async function loadModelList(key) {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+    headers: { 'x-goog-api-key': key },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  knownModels = (data.models || []).map((m) => m.name.replace(/^models\//, ''));
+  fillDatalist('liveModels', knownModels.filter((n) => /live|audio|transcribe/i.test(n)));
+  fillDatalist('analysisModels', knownModels.filter((n) => /flash|pro/i.test(n) && !/(live|audio|image|tts|embedding)/i.test(n)));
+  return knownModels;
+}
+
+function fillDatalist(id, names) {
+  const list = $(id);
+  list.innerHTML = '';
+  for (const n of names) {
+    const opt = document.createElement('option');
+    opt.value = n;
+    list.appendChild(opt);
+  }
+}
+
+function unknownModels() {
+  if (knownModels.length === 0) return [];
+  return [$('liveModel').value.trim(), $('analysisModel').value.trim()]
+    .filter((m) => m && !knownModels.includes(m));
+}
+
+function checkConfiguredModels() {
+  const bad = unknownModels();
+  setResult('modelResult', bad.length
+    ? `Atenção: ${bad.join(' e ')} não existe(m) na sua conta. Escolha um nome da lista ou deixe o campo em branco.`
+    : '', bad.length ? 'err' : '');
 }
 
 async function save() {
@@ -44,7 +84,10 @@ async function save() {
     analysisModel: $('analysisModel').value.trim(),
     playbookOverride: override,
   });
-  setResult('saveResult', 'Salvo.', 'ok');
+  checkConfiguredModels();
+  const bad = unknownModels();
+  setResult('saveResult', bad.length ? `Salvo, mas ${bad.join(' e ')} não existe(m) na sua conta.` : 'Salvo.', bad.length ? 'err' : 'ok');
+  if (bad.length) return;
   setTimeout(() => setResult('saveResult', ''), 2500);
 }
 
@@ -82,6 +125,7 @@ async function testKey() {
     }
     const data = await res.json();
     const names = (data.models || []).map((m) => m.name.replace(/^models\//, ''));
+    await loadModelList(key).catch(() => {});
     const live = names.filter((n) => /live|audio/i.test(n));
     const liveModel = $('liveModel').value.trim() || DEFAULT_LIVE_MODEL;
     const analysisModel = $('analysisModel').value.trim() || DEFAULT_ANALYSIS_MODEL;

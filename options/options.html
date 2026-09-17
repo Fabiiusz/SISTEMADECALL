@@ -31,12 +31,18 @@
       <section>
         <h2>Modelos</h2>
         <label>Modelo da Live API (transcrição)
-          <input id="liveModel" type="text" placeholder="gemini-3.8-live" spellcheck="false" />
+          <input id="liveModel" type="text" placeholder="gemini-3.8-live" spellcheck="false" list="liveModels" />
+          <datalist id="liveModels"></datalist>
         </label>
         <label>Modelo de análise (JSON do copiloto)
-          <input id="analysisModel" type="text" placeholder="gemini-3.8-flash" spellcheck="false" />
+          <input id="analysisModel" type="text" placeholder="gemini-3.8-flash" spellcheck="false" list="analysisModels" />
+          <datalist id="analysisModels"></datalist>
         </label>
-        <p class="muted">Deixe em branco para usar os padrões. Consulte os modelos disponíveis na sua conta com o botão "Testar chave".</p>
+        <p class="muted">
+          Deixe em branco para usar os padrões. Os campos sugerem os modelos que a sua conta tem: clique neles para ver a lista.
+          Um nome digitado errado faz a extensão falhar, então prefira escolher da lista.
+        </p>
+        <p id="modelResult" class="result"></p>
       </section>
 
       <section>

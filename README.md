@@ -206,11 +206,31 @@ escada de configurações, da mais desejável para a mais simples, e tenta a pr�
 `setupComplete`. A primeira que funcionar fica travada para as reconexões seguintes e aparece no diagnóstico do painel,
 em "Configuração aceita". A última tentativa troca o modelo por `gemini-3.5-transcribe-live`.
 
+### Como o checklist marca as perguntas
+
+A comparação é por **sentido**, não por palavras. O prompt instrui o modelo a marcar a pergunta sempre que o vendedor
+cobrir o assunto dela, mesmo trocando números ("30 minutos" no playbook e "40 minutos" na fala), usando linguagem
+informal, perguntando de forma indireta ou dividindo o assunto em várias falas. Na dúvida, o modelo marca, porque fazer
+o vendedor repetir uma pergunta já feita atrapalha mais do que deixar passar. Só falas do VENDEDOR contam.
+
+Para calibrar ao seu vocabulário, edite o `texto` das perguntas no `playbook.json`: o texto serve tanto de sugestão na
+tela quanto de referência para o modelo reconhecer a pergunta.
+
+### Detecção de objeções
+
+Conta como objeção qualquer sinal de resistência do lead, não só as três do playbook: preço, adiamento, falta de
+autonomia, desconfiança, prioridade e tempo. O modelo escolhe a objeção do playbook mais próxima, ou `"outra"` quando
+não houver nenhuma parecida, e escreve a resposta em primeira pessoa, pronta para falar, usando as palavras que o
+próprio lead usou. Quando a última fala é do LEAD, a análise roda mais cedo (1,2s de espera, no mínimo a cada 3,5s) para
+o card aparecer enquanto a objeção ainda está no ar.
+
 ### Resiliência da análise
 
 O modelo de análise pode responder **503** quando está congestionado do lado do Google. A extensão repete a chamada com
 espera crescente e, se o congestionamento persistir, consulta os modelos da conta e troca para outro modelo `flash`
-disponível, registrando a troca no diagnóstico. A análise também é limitada a uma chamada a cada 8 segundos, o que
+disponível, do mais novo para o mais antigo, registrando a troca no diagnóstico. Um modelo que responde **404**, por
+não existir na conta, também é descartado e substituído em vez de travar a análise. A página de opções sugere os
+modelos reais da conta nos dois campos e avisa ao salvar um nome que não existe. A análise também é limitada a uma chamada a cada 8 segundos, o que
 acompanha bem uma conversa falada e evita gastar cota à toa. Enquanto a análise estiver indisponível, a transcrição
 continua funcionando normalmente.
 
