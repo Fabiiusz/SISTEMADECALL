@@ -67,11 +67,17 @@ async function testKey() {
   if (!key) { setResult('keyResult', 'Cole a chave primeiro.', 'err'); return; }
   setResult('keyResult', 'Testando...');
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=200`);
+    // A chave vai no cabeçalho, para aceitar tanto o formato novo ("AQ.") quanto o antigo ("AIza").
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+      headers: { 'x-goog-api-key': key },
+    });
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.json())?.error?.message || ''; } catch { /* ignore */ }
-      setResult('keyResult', `Chave recusada (${res.status}). ${detail}`, 'err');
+      const hint = (res.status === 401 || res.status === 403)
+        ? ' Confira se copiou a chave inteira, sem espaços, e se ela não foi revogada.'
+        : '';
+      setResult('keyResult', `Chave recusada (${res.status}). ${detail}${hint}`, 'err');
       return;
     }
     const data = await res.json();

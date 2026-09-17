@@ -92,8 +92,16 @@ icons/                      Ícones da extensão
 2. Em `chrome://extensions`, clique em **Detalhes** da extensão e depois em **Opções da extensão**
    (ou clique com o botão direito no ícone > Opções).
 3. Cole a chave, clique em **Testar chave** (a página lista os modelos disponíveis na sua conta) e em **Salvar**.
+   O botão de teste não salva nada; quem salva é o **Salvar**.
 4. Se o teste avisar que `gemini-3.8-live` ou `gemini-3.8-flash` não aparecem na sua conta, troque pelos nomes
    equivalentes que a lista mostrar (um modelo com "live" no nome para a transcrição e um modelo "flash" para a análise).
+
+### Formatos de chave aceitos
+
+Desde maio de 2026 o AI Studio emite **auth keys**, que começam com `AQ.`, no lugar das chaves antigas que começavam
+com `AIza`. A extensão aceita os dois formatos porque envia a chave no cabeçalho `x-goog-api-key`, e não na query
+string `?key=`. Chaves `AQ.` são rejeitadas com **401** por qualquer integração que ainda use `?key=`; se você vir esse
+erro em outra ferramenta, o problema é ela, não a sua chave.
 
 ## Testar numa chamada do Meet
 
@@ -154,12 +162,19 @@ recarregar a extensão.
 | Situação | O que o painel mostra |
 |---|---|
 | Sem chave da API | Aviso com botão "Abrir opções" |
-| Chave inválida ou sem permissão | Aviso vindo da Gemini (WebSocket ou `generateContent`) |
+| Chave inválida ou sem permissão | Aviso vindo da Gemini (WebSocket ou `generateContent`), com o código 400, 401 ou 403 |
 | Permissão de microfone negada | Aviso com botão "Conceder microfone" (abre a página de permissão) |
 | Aba ativa não é o Meet | Aviso pedindo para ativar a aba `meet.google.com` |
 | Conexão com a Gemini caiu | Status amarelo "Reconectando..." com retomada de sessão; após 6 tentativas, erro e parada |
 | Modelo não encontrado | Aviso para ajustar o nome do modelo nas opções |
 | Limite de requisições (429) | Aviso; a análise tenta de novo no próximo trecho |
+
+## Ponto ainda não confirmado em uso real
+
+O navegador não deixa definir cabeçalhos numa conexão WebSocket, então a sessão da Live API manda a chave na query
+string `?key=`, que é exatamente o que o SDK oficial do Gemini faz no browser. As chamadas REST (análise e teste de
+chave) usam o cabeçalho. Se a transcrição falhar com erro de autenticação enquanto o teste de chave passa, é esse
+ponto: abra uma issue com a mensagem exata que aparecer no painel.
 
 ## Limitações do MVP
 

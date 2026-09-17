@@ -16,9 +16,12 @@
 
       <section>
         <h2>Chave da API do Gemini</h2>
-        <p class="muted">Crie a sua chave em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+        <p class="muted">
+          Crie a sua chave em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.
+          Funciona tanto o formato novo, que começa com <code>AQ.</code>, quanto o antigo, que começa com <code>AIza</code>.
+        </p>
         <div class="row">
-          <input id="apiKey" type="password" placeholder="AIza..." autocomplete="off" spellcheck="false" />
+          <input id="apiKey" type="password" placeholder="AQ.… ou AIza…" autocomplete="off" spellcheck="false" />
           <button id="toggleKey" type="button" class="btn">Mostrar</button>
           <button id="testKey" type="button" class="btn">Testar chave</button>
         </div>

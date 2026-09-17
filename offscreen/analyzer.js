@@ -39,16 +39,20 @@ export class PlaybookAnalyzer {
       },
     };
 
-    const url = `${API_BASE}/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`;
+    // A chave vai no cabeçalho x-goog-api-key, nunca em "?key=". As chaves novas
+    // do AI Studio (prefixo "AQ.") só são aceitas no cabeçalho; as antigas
+    // (prefixo "AIza") funcionam nos dois formatos.
+    const url = `${API_BASE}/${encodeURIComponent(this.model)}:generateContent`;
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.json())?.error?.message || ''; } catch { /* ignore */ }
       if (res.status === 400 && /api key/i.test(detail)) throw new Error('Chave da API inválida. Verifique nas opções.');
+      if (res.status === 401) throw new Error('Chave da API não autenticada (401). Confira a chave nas opções. ' + detail);
       if (res.status === 403) throw new Error('Chave da API sem permissão (403). ' + detail);
       if (res.status === 404) throw new Error(`Modelo de análise "${this.model}" não encontrado. Ajuste nas opções.`);
       if (res.status === 429) throw new Error('Limite de requisições da Gemini atingido (429). Tentando de novo em breve.');

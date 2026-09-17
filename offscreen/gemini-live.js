@@ -42,6 +42,8 @@ export class GeminiLiveTranscriber {
     this.ready = false;
     this.onStatus({ state: 'connecting', message: this.retries ? `Reconectando (${this.retries}/${MAX_RETRIES})...` : 'Conectando...' });
 
+    // O navegador não permite cabeçalhos em WebSocket, então aqui a chave vai
+    // na query string, exatamente como o SDK oficial do Gemini faz no browser.
     const url = `${WS_BASE}?key=${encodeURIComponent(this.apiKey)}`;
     const ws = new WebSocket(url);
     this.ws = ws;
@@ -183,6 +185,7 @@ export class GeminiLiveTranscriber {
 
 function looksLikeAuthError(code, reason) {
   if (/api key|api_key|unauthenticated|permission denied|forbidden|401|403/i.test(reason)) return true;
+  if (code === 1006 && !reason) return false;
   return code === 1008 && !reason;
 }
 
