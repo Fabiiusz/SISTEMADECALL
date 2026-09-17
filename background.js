@@ -4,6 +4,9 @@
 //  - gerar o streamId da aba (chrome.tabCapture.getMediaStreamId);
 //  - criar/fechar o offscreen document que faz a captura e fala com a Gemini.
 
+import { getSettings } from './shared/settings.js';
+import { loadPlaybook } from './shared/playbook.js';
+
 const OFFSCREEN_URL = 'offscreen/offscreen.html';
 const MEET_HOST = 'meet.google.com';
 const INVOKED_TAB_KEY = 'invokedTabId';
@@ -132,6 +135,18 @@ async function startCopilot() {
     throw new Error('Não foi possível capturar o áudio da aba: ' + text);
   }
 
+  // Um offscreen document só enxerga chrome.runtime: nada de chrome.storage nem
+  // de leitura de arquivos da extensão. Por isso o service worker lê as
+  // configurações e o playbook aqui e entrega tudo pronto na mensagem.
+  const settings = await getSettings();
+  if (!settings.apiKey) {
+    throw withCode(
+      new Error('Chave da API do Gemini não configurada. Abra as opções e cole a sua chave.'),
+      'NO_API_KEY',
+    );
+  }
+  const { playbook } = await loadPlaybook();
+
   await ensureOffscreenDocument();
 
   const response = await chrome.runtime.sendMessage({
@@ -139,6 +154,8 @@ async function startCopilot() {
     type: 'offscreen:start',
     streamId,
     tabTitle: tab.title || '',
+    settings,
+    playbook,
   });
   if (!response) throw new Error('O documento de captura não respondeu.');
   if (!response.ok) {

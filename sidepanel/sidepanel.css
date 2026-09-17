@@ -212,8 +212,9 @@ main { padding: 10px 14px 4px; display: flex; flex-direction: column; gap: 10px;
 
 footer {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 14px 12px; font-size: 12px;
+  padding: 4px 14px 12px; font-size: 12px;
 }
+.playbook-line { padding: 8px 14px 0; font-size: 11px; }
 footer a { color: var(--primary); text-decoration: none; font-weight: 600; }
 
 .counter.pulse { color: var(--primary); animation: blink 0.9s ease-in-out infinite; }

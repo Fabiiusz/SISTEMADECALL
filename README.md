@@ -187,6 +187,17 @@ recarregar a extensão.
 | Modelo não encontrado | Aviso para ajustar o nome do modelo nas opções |
 | Limite de requisições (429) | Aviso; a análise tenta de novo no próximo trecho |
 
+### Limite do offscreen document
+
+Um offscreen document só tem acesso ao `chrome.runtime`. `chrome.storage` e a leitura de arquivos da extensão **não
+funcionam** lá dentro, e tentar usá-los quebra com `Cannot read properties of undefined`. Por isso o service worker lê
+a chave, os modelos e o `playbook.json`, e entrega tudo pronto na mensagem `offscreen:start`.
+
+### Botão "Copiar diagnóstico"
+
+No rodapé do painel existe o link **Copiar diagnóstico**. Ele copia versão, status, estado das conexões e os últimos
+avisos exibidos, sem incluir a chave da API. Use isso ao relatar um problema, em vez de procurar erros no DevTools.
+
 ## Ponto ainda não confirmado em uso real
 
 O navegador não deixa definir cabeçalhos numa conexão WebSocket, então a sessão da Live API manda a chave na query

@@ -29,6 +29,7 @@ const el = {
   levelSeller: document.getElementById('levelSeller'),
   playbookName: document.getElementById('playbookName'),
   openOptions: document.getElementById('openOptions'),
+  copyDiag: document.getElementById('copyDiag'),
 };
 
 const ui = {
@@ -38,7 +39,17 @@ const ui = {
   analysis: null,
   partialNodes: { LEAD: null, VENDEDOR: null },
   dismissedObjectionTs: null,
+  log: [],
 };
+
+// Registro simples de eventos, para o botão "Copiar diagnóstico" do rodapé.
+// Assim dá para relatar um problema sem abrir as ferramentas do desenvolvedor.
+function logEvent(kind, text) {
+  ui.log.push({ t: new Date().toLocaleTimeString('pt-BR'), kind, text: String(text) });
+  if (ui.log.length > 50) ui.log.shift();
+}
+window.addEventListener('error', (e) => logEvent('erro-js', e.message));
+window.addEventListener('unhandledrejection', (e) => logEvent('erro-js', e.reason?.message || e.reason));
 
 init();
 
@@ -47,6 +58,7 @@ async function init() {
   el.bannerClose.addEventListener('click', hideBanner);
   el.openOptions.addEventListener('click', (e) => { e.preventDefault(); openOptions(); });
   el.dismissObjection.addEventListener('click', dismissObjection);
+  el.copyDiag.addEventListener('click', copyDiagnostics);
   el.copyObjection.addEventListener('click', copyObjection);
   chrome.runtime.onMessage.addListener(onMessage);
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -393,7 +405,51 @@ function setLevel(speaker, level) {
   (speaker === 'LEAD' ? el.levelLead : el.levelSeller).style.width = pct + '%';
 }
 
+async function copyDiagnostics(event) {
+  event.preventDefault();
+  const m = chrome.runtime.getManifest();
+  const lines = [
+    `Extensão: ${m.name} v${m.version}`,
+    `Quando: ${new Date().toLocaleString('pt-BR')}`,
+    `Navegador: ${navigator.userAgent}`,
+  ];
+  try {
+    const s = await getSettings();
+    // Nunca inclui a chave em si, só o tamanho e o prefixo do formato.
+    lines.push(`Chave configurada: ${s.apiKey ? `sim (${s.apiKey.length} caracteres, começa com "${s.apiKey.slice(0, 3)}")` : 'NÃO'}`);
+    lines.push(`Modelo Live: ${s.liveModel}`);
+    lines.push(`Modelo de análise: ${s.analysisModel}`);
+  } catch (err) {
+    lines.push('Falha ao ler as configurações: ' + err.message);
+  }
+  lines.push(`Copiloto rodando: ${ui.running ? 'sim' : 'não'}`);
+  lines.push(`Status exibido: ${el.statusText.textContent}`);
+  lines.push(`Playbook: ${el.playbookName.textContent || '(não carregado)'}`);
+  try {
+    const st = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'offscreen:getState' });
+    lines.push(`Captura ativa: ${st?.running ? 'sim' : 'não'}`);
+    if (st?.channelStatus) lines.push(`Conexões Gemini: LEAD=${st.channelStatus.LEAD}, VENDEDOR=${st.channelStatus.VENDEDOR}`);
+    lines.push(`Falas transcritas: ${st?.transcript?.length ?? 0}`);
+  } catch {
+    lines.push('Captura ativa: não (documento de captura fechado)');
+  }
+  lines.push('', 'Últimos eventos:');
+  if (ui.log.length === 0) lines.push('(nenhum)');
+  for (const item of ui.log) lines.push(`- ${item.t} [${item.kind}] ${item.text}`);
+
+  const text = lines.join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    el.copyDiag.textContent = 'Copiado!';
+    setTimeout(() => { el.copyDiag.textContent = 'Copiar diagnóstico'; }, 2000);
+  } catch {
+    console.log(text);
+    el.copyDiag.textContent = 'Veja o console';
+  }
+}
+
 function showBanner(text, action, kind = '') {
+  logEvent(kind === 'info' ? 'aviso' : 'erro', text);
   el.bannerText.textContent = text;
   el.banner.className = 'banner ' + kind;
   el.banner.hidden = false;

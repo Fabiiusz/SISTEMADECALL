@@ -4,10 +4,11 @@
 // Este documento é a "fonte da verdade" do estado do copiloto enquanto ele roda;
 // o painel lateral só exibe o que recebe daqui.
 
+// ATENÇÃO: um offscreen document só tem acesso ao chrome.runtime. chrome.storage
+// e a leitura de arquivos da extensão NÃO funcionam aqui, por isso as
+// configurações e o playbook chegam prontos na mensagem offscreen:start.
 import { GeminiLiveTranscriber } from './gemini-live.js';
 import { PlaybookAnalyzer } from './analyzer.js';
-import { getSettings } from '../shared/settings.js';
-import { loadPlaybook } from '../shared/playbook.js';
 
 const SPEAKERS = { tab: 'LEAD', mic: 'VENDEDOR' };
 const ANALYSIS_DEBOUNCE_MS = 1200;
@@ -89,15 +90,16 @@ function setStatus(state, message = '') {
   broadcast({ type: 'status', status: session.status, running: session.running, channelStatus: session.channelStatus });
 }
 
-async function start({ streamId, tabTitle }) {
+async function start({ streamId, tabTitle, settings, playbook }) {
   if (session.running || session.starting) return { ok: true, alreadyRunning: true };
   session.starting = true;
   try {
-    const settings = await getSettings();
-    if (!settings.apiKey) {
+    if (!settings?.apiKey) {
       throw withCode(new Error('Chave da API do Gemini não configurada. Abra as opções e cole a sua chave.'), 'NO_API_KEY');
     }
-    const { playbook } = await loadPlaybook();
+    if (!playbook?.etapas?.length) {
+      throw withCode(new Error('Playbook inválido ou vazio. Verifique o playbook.json.'), 'BAD_PLAYBOOK');
+    }
     session.playbook = playbook;
     session.tabTitle = tabTitle || '';
     resetConversation();
