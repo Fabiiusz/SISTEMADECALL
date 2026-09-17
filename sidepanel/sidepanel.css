@@ -194,6 +194,10 @@ main { padding: 10px 14px 4px; display: flex; flex-direction: column; gap: 10px;
 }
 .checklist li.done .box { background: var(--ok); border-color: var(--ok); }
 
+.analysis-state { font-size: 11px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.analysis-state.ok { color: var(--ok); }
+.analysis-state.err { color: var(--danger); }
+
 /* Transcrição */
 .transcript summary {
   cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; list-style: none;

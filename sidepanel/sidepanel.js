@@ -30,6 +30,7 @@ const el = {
   playbookName: document.getElementById('playbookName'),
   openOptions: document.getElementById('openOptions'),
   copyDiag: document.getElementById('copyDiag'),
+  analysisState: document.getElementById('analysisState'),
 };
 
 const ui = {
@@ -40,6 +41,9 @@ const ui = {
   partialNodes: { LEAD: null, VENDEDOR: null },
   dismissedObjectionTs: null,
   lastAnalysisWarnAt: 0,
+  lastAnalysisOkAt: 0,
+  lastAnalysisError: '',
+  analysisCount: 0,
   log: [],
 };
 
@@ -60,6 +64,15 @@ async function init() {
   el.openOptions.addEventListener('click', (e) => { e.preventDefault(); openOptions(); });
   el.dismissObjection.addEventListener('click', dismissObjection);
   el.copyDiag.addEventListener('click', copyDiagnostics);
+  // A transcrição continua recolhida por padrão; guardamos só a escolha do usuário.
+  try {
+    const saved = localStorage.getItem('transcriptOpen');
+    if (saved !== null) el.transcriptDetails.open = saved === '1';
+  } catch { /* armazenamento bloqueado */ }
+  el.transcriptDetails.addEventListener('toggle', () => {
+    try { localStorage.setItem('transcriptOpen', el.transcriptDetails.open ? '1' : '0'); } catch { /* ignore */ }
+  });
+  setInterval(renderAnalysisState, 5000);
   el.copyObjection.addEventListener('click', copyObjection);
   chrome.runtime.onMessage.addListener(onMessage);
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -254,7 +267,11 @@ function onMessage(msg) {
       setLevel(msg.speaker, msg.level);
       break;
     case 'analysis':
+      ui.lastAnalysisOkAt = Date.now();
+      ui.lastAnalysisError = '';
+      ui.analysisCount += 1;
       renderAnalysis(msg.analysis);
+      renderAnalysisState();
       break;
     case 'analyzing':
       el.checklistCounter.classList.toggle('pulse', !!msg.value);
@@ -263,6 +280,8 @@ function onMessage(msg) {
       // Congestionamento do lado do Google é passageiro e a extensão já tenta
       // de novo sozinha, então não vale encher o painel de avisos iguais.
       logEvent('análise', msg.message);
+      ui.lastAnalysisError = msg.message;
+      renderAnalysisState();
       if (Date.now() - ui.lastAnalysisWarnAt > 60000) {
         ui.lastAnalysisWarnAt = Date.now();
         showBanner('Análise temporariamente indisponível: ' + msg.message + ' A transcrição continua normal.', null, 'info');
@@ -462,6 +481,30 @@ async function copyDiagnostics(event) {
     console.log(text);
     el.copyDiag.textContent = 'Veja o console';
   }
+}
+
+// Deixa claro se a análise está rodando, para o checklist nunca ficar parado
+// sem explicação.
+function renderAnalysisState() {
+  const node = el.analysisState;
+  if (!ui.running) {
+    node.textContent = 'Análise: parada.';
+    node.className = 'analysis-state muted';
+    return;
+  }
+  if (ui.lastAnalysisError) {
+    node.textContent = 'Análise com erro: ' + ui.lastAnalysisError;
+    node.className = 'analysis-state err';
+    return;
+  }
+  if (!ui.lastAnalysisOkAt) {
+    node.textContent = 'Análise: aguardando a primeira fala transcrita.';
+    node.className = 'analysis-state muted';
+    return;
+  }
+  const secs = Math.round((Date.now() - ui.lastAnalysisOkAt) / 1000);
+  node.textContent = `Análise: ${ui.analysisCount} leitura(s) do playbook, a última há ${secs}s.`;
+  node.className = 'analysis-state ok';
 }
 
 function showBanner(text, action, kind = '') {

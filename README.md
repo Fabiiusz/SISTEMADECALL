@@ -224,6 +224,12 @@ não houver nenhuma parecida, e escreve a resposta em primeira pessoa, pronta pa
 próprio lead usou. Quando a última fala é do LEAD, a análise roda mais cedo (1,2s de espera, no mínimo a cada 3,5s) para
 o card aparecer enquanto a objeção ainda está no ar.
 
+### Estado da análise sempre visível
+
+Abaixo do checklist há uma linha que diz quantas leituras do playbook já aconteceram e há quanto tempo foi a última.
+Se a análise estiver falhando, o motivo aparece ali em vermelho. Isso existe porque um checklist parado pode significar
+duas coisas muito diferentes: a IA não reconheceu a pergunta, ou a análise nem chegou a rodar.
+
 ### Resiliência da análise
 
 O modelo de análise pode responder **503** quando está congestionado do lado do Google. A extensão repete a chamada com

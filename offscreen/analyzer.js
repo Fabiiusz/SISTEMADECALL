@@ -52,7 +52,7 @@ export class PlaybookAnalyzer {
       systemInstruction: { parts: [{ text: this.systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text: userText }] }],
       generationConfig: {
-        temperature: 0.2,
+        temperature: 0,
         responseMimeType: 'application/json',
         responseSchema: this.schema,
       },
@@ -225,6 +225,8 @@ function buildSystemPrompt(pb) {
     'Fazer o vendedor repetir uma pergunta que ele já fez atrapalha mais do que deixar passar.',
     'Só falas do [VENDEDOR] contam: o lead falar sobre um assunto não marca a pergunta.',
     'Considere as perguntas já marcadas no ESTADO ATUAL e some as novas. Uma vez marcada, a pergunta continua marcada.',
+    'IMPORTANTE: releia a TRANSCRIÇÃO INTEIRA a cada resposta, não apenas as últimas falas, e devolva TODAS as perguntas',
+    'que já foram cobertas em qualquer momento da conversa. Devolver uma lista menor que a anterior é um erro.',
     '',
     'REGRA 3 - proxima_pergunta',
     'O texto da melhor próxima pergunta para o VENDEDOR fazer agora, priorizando as ainda não feitas da etapa atual.',
