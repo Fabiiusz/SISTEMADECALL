@@ -211,8 +211,10 @@ export class GeminiLiveTranscriber {
 /** Da configuração mais desejável para a mais simples. */
 function buildVariants(model) {
   const list = [
-    { label: 'texto', apiVersion: 'v1beta', model, generationConfig: { responseModalities: ['TEXT'] }, inputAudioTranscription: {} },
+    // ÁUDIO vem primeiro porque os modelos Live nativos de áudio recusam
+    // resposta em TEXTO, e a transcrição da entrada chega igual nos dois casos.
     { label: 'áudio', apiVersion: 'v1beta', model, generationConfig: { responseModalities: ['AUDIO'] }, inputAudioTranscription: {} },
+    { label: 'texto', apiVersion: 'v1beta', model, generationConfig: { responseModalities: ['TEXT'] }, inputAudioTranscription: {} },
     { label: 'sem generationConfig', apiVersion: 'v1beta', model, generationConfig: null, inputAudioTranscription: {} },
   ];
   if (model !== FALLBACK_MODEL) {

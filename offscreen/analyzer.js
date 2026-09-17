@@ -3,7 +3,17 @@
 // { etapa_atual, perguntas_feitas, proxima_pergunta, objecao_detectada }
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const MODELS_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MAX_LINES = 40;
+const MAX_ATTEMPTS = 3;
+const RETRY_BASE_MS = 900;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function transient(err) {
+  err.transient = true;
+  return err;
+}
 
 export class PlaybookAnalyzer {
   constructor({ apiKey, model, playbook }) {
@@ -13,6 +23,8 @@ export class PlaybookAnalyzer {
     this.stageIds = playbook.etapas.map((e) => e.id);
     this.questionIds = playbook.etapas.flatMap((e) => e.perguntas.map((p) => p.id));
     this.objectionIds = playbook.objecoes.map((o) => o.id);
+    this.tried = new Set([model]);
+    this.switching = null;
     this.systemPrompt = buildSystemPrompt(playbook);
     this.schema = buildSchema(this.stageIds, this.questionIds, this.objectionIds);
   }
@@ -39,15 +51,38 @@ export class PlaybookAnalyzer {
       },
     };
 
-    // A chave vai no cabeçalho x-goog-api-key, nunca em "?key=". As chaves novas
-    // do AI Studio (prefixo "AQ.") só são aceitas no cabeçalho; as antigas
-    // (prefixo "AIza") funcionam nos dois formatos.
+    // 503 e 429 são passageiros: o modelo está congestionado do lado do Google.
+    // Repetimos com espera crescente e, se insistir, trocamos para outro modelo
+    // rápido da própria conta em vez de desistir.
+    let lastError;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const parsed = await this.callModel(body);
+        return this.sanitize(parsed, state);
+      } catch (err) {
+        lastError = err;
+        if (!err.transient) throw err;
+        if (err.overloaded) await this.switchModel();
+        if (attempt < MAX_ATTEMPTS - 1) await sleep(RETRY_BASE_MS * 2 ** attempt);
+      }
+    }
+    throw lastError;
+  }
+
+  async callModel(body) {
+    // A chave vai no cabeçalho x-goog-api-key, nunca em "?key=".
     const url = `${API_BASE}/${encodeURIComponent(this.model)}:generateContent`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
-      body: JSON.stringify(body),
-    });
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      throw transient(new Error('Falha de rede ao falar com a Gemini: ' + (err?.message || err)));
+    }
+
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.json())?.error?.message || ''; } catch { /* ignore */ }
@@ -55,18 +90,46 @@ export class PlaybookAnalyzer {
       if (res.status === 401) throw new Error('Chave da API não autenticada (401). Confira a chave nas opções. ' + detail);
       if (res.status === 403) throw new Error('Chave da API sem permissão (403). ' + detail);
       if (res.status === 404) throw new Error(`Modelo de análise "${this.model}" não encontrado. Ajuste nas opções.`);
-      if (res.status === 429) throw new Error('Limite de requisições da Gemini atingido (429). Tentando de novo em breve.');
+      if (res.status === 429) throw transient(new Error('Limite de requisições atingido (429).'));
+      if (res.status === 503 || res.status === 500) {
+        const err = transient(new Error(`Modelo "${this.model}" congestionado (${res.status}).`));
+        err.overloaded = true;
+        throw err;
+      }
       throw new Error(`Erro ${res.status} na análise: ${detail || res.statusText}`);
     }
+
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
-    let parsed;
     try {
-      parsed = JSON.parse(text);
+      return JSON.parse(text);
     } catch {
       throw new Error('A IA devolveu uma resposta que não é JSON válido.');
     }
-    return this.sanitize(parsed, state);
+  }
+
+  /** Troca para outro modelo rápido disponível na conta, uma única vez por modelo. */
+  async switchModel() {
+    if (this.switching) return this.switching;
+    this.switching = (async () => {
+      try {
+        const res = await fetch(`${MODELS_URL}?pageSize=200`, { headers: { 'x-goog-api-key': this.apiKey } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const names = (data.models || [])
+          .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+          .map((m) => m.name.replace(/^models\//, ''))
+          .filter((n) => /flash/i.test(n) && !/(live|audio|image|tts|embedding|vision)/i.test(n));
+        const next = names.find((n) => n !== this.model && !this.tried.has(n));
+        if (next) {
+          this.tried.add(next);
+          this.model = next;
+        }
+      } catch { /* mantém o modelo atual */ } finally {
+        this.switching = null;
+      }
+    })();
+    return this.switching;
   }
 
   sanitize(out, state) {

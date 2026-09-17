@@ -11,7 +11,11 @@ import { GeminiLiveTranscriber } from './gemini-live.js';
 import { PlaybookAnalyzer } from './analyzer.js';
 
 const SPEAKERS = { tab: 'LEAD', mic: 'VENDEDOR' };
-const ANALYSIS_DEBOUNCE_MS = 1200;
+const ANALYSIS_DEBOUNCE_MS = 2500;
+// A análise não precisa rodar a cada fala: isso gasta cota à toa e provoca
+// erro 503 por excesso de chamadas. Uma a cada 8 segundos acompanha bem uma
+// conversa falada.
+const MIN_ANALYSIS_INTERVAL_MS = 8000;
 const PARTIAL_FLUSH_MS = 2500;
 const LEVEL_THROTTLE_MS = 150;
 
@@ -33,6 +37,7 @@ const session = {
   analysisTimer: null,
   analysisInFlight: false,
   analysisPending: false,
+  lastAnalysisAt: 0,
   status: { state: 'idle', message: '' },
   channelStatus: { LEAD: 'closed', VENDEDOR: 'closed' },
   variant: { LEAD: '', VENDEDOR: '' },
@@ -79,6 +84,7 @@ function snapshot() {
     transcript: session.transcript,
     partial: session.partial,
     analysis: session.analysis,
+    analysisModel: session.analyzer?.model || '',
     playbook: session.playbook,
   };
 }
@@ -306,13 +312,16 @@ function onChannelFatal(speaker, err) {
 
 function scheduleAnalysis() {
   clearTimeout(session.analysisTimer);
-  session.analysisTimer = setTimeout(runAnalysis, ANALYSIS_DEBOUNCE_MS);
+  const sinceLast = Date.now() - session.lastAnalysisAt;
+  const wait = Math.max(ANALYSIS_DEBOUNCE_MS, MIN_ANALYSIS_INTERVAL_MS - sinceLast);
+  session.analysisTimer = setTimeout(runAnalysis, wait);
 }
 
 async function runAnalysis() {
   if (!session.running || !session.analyzer) return;
   if (session.analysisInFlight) { session.analysisPending = true; return; }
   session.analysisInFlight = true;
+  session.lastAnalysisAt = Date.now();
   broadcast({ type: 'analyzing', value: true });
   try {
     const state = {
@@ -338,6 +347,7 @@ async function runAnalysis() {
     broadcast({ type: 'analysisError', message: err?.message || String(err) });
   } finally {
     session.analysisInFlight = false;
+    session.lastAnalysisAt = Date.now();
     broadcast({ type: 'analyzing', value: false });
     if (session.analysisPending) {
       session.analysisPending = false;

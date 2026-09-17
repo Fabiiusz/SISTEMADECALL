@@ -206,12 +206,19 @@ escada de configurações, da mais desejável para a mais simples, e tenta a pr�
 `setupComplete`. A primeira que funcionar fica travada para as reconexões seguintes e aparece no diagnóstico do painel,
 em "Configuração aceita". A última tentativa troca o modelo por `gemini-3.5-transcribe-live`.
 
-## Ponto ainda não confirmado em uso real
+### Resiliência da análise
 
-O navegador não deixa definir cabeçalhos numa conexão WebSocket, então a sessão da Live API manda a chave na query
-string `?key=`, que é exatamente o que o SDK oficial do Gemini faz no browser. As chamadas REST (análise e teste de
-chave) usam o cabeçalho. Se a transcrição falhar com erro de autenticação enquanto o teste de chave passa, é esse
-ponto: abra uma issue com a mensagem exata que aparecer no painel.
+O modelo de análise pode responder **503** quando está congestionado do lado do Google. A extensão repete a chamada com
+espera crescente e, se o congestionamento persistir, consulta os modelos da conta e troca para outro modelo `flash`
+disponível, registrando a troca no diagnóstico. A análise também é limitada a uma chamada a cada 8 segundos, o que
+acompanha bem uma conversa falada e evita gastar cota à toa. Enquanto a análise estiver indisponível, a transcrição
+continua funcionando normalmente.
+
+## O que já foi confirmado funcionando
+
+Confirmado em uso: a chave no formato `AQ.` funciona na query string do WebSocket, a captura da aba e do microfone
+funciona, e a transcrição chega rotulada por falante. O `gemini-3.8-live` **não aceita** `responseModalities: ['TEXT']`,
+por isso a escada começa por `AUDIO`; a transcrição da entrada chega igual nos dois modos.
 
 ## Limitações do MVP
 

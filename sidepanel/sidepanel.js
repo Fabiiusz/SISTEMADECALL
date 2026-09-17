@@ -39,6 +39,7 @@ const ui = {
   analysis: null,
   partialNodes: { LEAD: null, VENDEDOR: null },
   dismissedObjectionTs: null,
+  lastAnalysisWarnAt: 0,
   log: [],
 };
 
@@ -259,7 +260,13 @@ function onMessage(msg) {
       el.checklistCounter.classList.toggle('pulse', !!msg.value);
       break;
     case 'analysisError':
-      showBanner('Análise falhou: ' + msg.message, null, 'info');
+      // Congestionamento do lado do Google é passageiro e a extensão já tenta
+      // de novo sozinha, então não vale encher o painel de avisos iguais.
+      logEvent('análise', msg.message);
+      if (Date.now() - ui.lastAnalysisWarnAt > 60000) {
+        ui.lastAnalysisWarnAt = Date.now();
+        showBanner('Análise temporariamente indisponível: ' + msg.message + ' A transcrição continua normal.', null, 'info');
+      }
       break;
     case 'invoked':
       // O usuário clicou no ícone: a aba acabou de receber activeTab.
@@ -438,6 +445,7 @@ async function copyDiagnostics(event) {
       }
     }
     lines.push(`Falas transcritas: ${st?.transcript?.length ?? 0}`);
+    if (st?.analysisModel) lines.push(`Modelo de análise em uso: ${st.analysisModel}`);
   } catch {
     lines.push('Captura ativa: não (documento de captura fechado)');
   }
