@@ -30,6 +30,7 @@ const el = {
   playbookName: document.getElementById('playbookName'),
   openOptions: document.getElementById('openOptions'),
   copyDiag: document.getElementById('copyDiag'),
+  openHistory: document.getElementById('openHistory'),
   analysisState: document.getElementById('analysisState'),
 };
 
@@ -64,6 +65,10 @@ async function init() {
   el.openOptions.addEventListener('click', (e) => { e.preventDefault(); openOptions(); });
   el.dismissObjection.addEventListener('click', dismissObjection);
   el.copyDiag.addEventListener('click', copyDiagnostics);
+  el.openHistory.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.runtime.sendMessage({ target: 'background', type: 'copilot:openHistory' }).catch(console.warn);
+  });
   // A transcrição continua recolhida por padrão; guardamos só a escolha do usuário.
   try {
     const saved = localStorage.getItem('transcriptOpen');
@@ -186,16 +191,24 @@ function handleStartError(res) {
 }
 
 async function stopCopilot() {
-  setBusy(true, 'Parando...');
+  setBusy(true, 'Parando e gerando o resumo...');
+  let saved = false;
   try {
-    await chrome.runtime.sendMessage({ target: 'background', type: 'copilot:stop' });
+    const res = await chrome.runtime.sendMessage({ target: 'background', type: 'copilot:stop' });
+    saved = !!res?.saved;
   } catch (err) {
     console.warn(err);
   } finally {
     setBusy(false);
     setRunning(false);
-    renderStatus({ state: 'idle', message: 'Copiloto parado' });
+    renderStatus({ state: 'idle', message: saved ? 'Reunião salva no histórico' : 'Copiloto parado' });
     setLevel('LEAD', 0); setLevel('VENDEDOR', 0);
+    if (saved) {
+      showBanner('Reunião salva com transcrição, resumo e checklist.', {
+        label: 'Abrir histórico',
+        onClick: () => chrome.runtime.sendMessage({ target: 'background', type: 'copilot:openHistory' }).catch(() => {}),
+      }, 'info');
+    }
   }
 }
 
@@ -328,6 +341,7 @@ function renderStatus(status) {
     connecting: 'Conectando à Gemini...',
     listening: 'Ouvindo a reunião',
     reconnecting: 'Reconectando...',
+    saving: 'Salvando a reunião...',
     error: 'Erro',
   };
   el.statusDot.className = 'brand-dot ' + (status.state || '');

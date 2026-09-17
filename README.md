@@ -224,11 +224,34 @@ não houver nenhuma parecida, e escreve a resposta em primeira pessoa, pronta pa
 próprio lead usou. Quando a última fala é do LEAD, a análise roda mais cedo (1,2s de espera, no mínimo a cada 3,5s) para
 o card aparecer enquanto a objeção ainda está no ar.
 
+### Histórico de reuniões
+
+Ao clicar em **Parar**, a extensão salva a reunião e gera um resumo com a própria Gemini. O link **Histórico** no rodapé
+do painel abre a página com todas as reuniões guardadas, e cada uma traz:
+
+- resumo da conversa, perfil do lead e dores identificadas;
+- o que foi bem, o que melhorar e próximos passos sugeridos;
+- o checklist final, etapa por etapa, com o que foi e o que não foi perguntado;
+- as objeções que apareceram e as respostas sugeridas na hora;
+- a transcrição completa, com horário e falante.
+
+Cada reunião pode ser copiada inteira ou baixada como `.md`. Ficam guardadas as 50 mais recentes, em
+`chrome.storage.local`, apenas neste navegador. O resumo é best-effort: se a Gemini estiver congestionada, a reunião é
+salva mesmo assim, sem resumo, e o motivo fica registrado.
+
 ### Estado da análise sempre visível
 
 Abaixo do checklist há uma linha que diz quantas leituras do playbook já aconteceram e há quanto tempo foi a última.
 Se a análise estiver falhando, o motivo aparece ali em vermelho. Isso existe porque um checklist parado pode significar
 duas coisas muito diferentes: a IA não reconheceu a pergunta, ou a análise nem chegou a rodar.
+
+### Por que a análise às vezes troca de modelo
+
+O erro **503** não tem relação com crédito nem com cota: é o modelo congestionado nos servidores do Google. Requisições
+sem faturamento ativo têm prioridade menor, então 503 é bem mais comum no nível gratuito. A extensão insiste no modelo
+preferido por três recusas seguidas, porque congestionamento costuma passar, e só então troca por outro modelo da conta.
+Passados dois minutos, ela volta sozinha ao modelo preferido. Cada chamada tem limite de 25 segundos, para uma resposta
+lenta não travar o painel.
 
 ### Resiliência da análise
 

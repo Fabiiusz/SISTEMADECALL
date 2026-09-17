@@ -4,9 +4,18 @@
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODELS_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MAX_LINES = 40;
-const MAX_ATTEMPTS = 5;
+// Janela curta de falas: o ESTADO ATUAL já carrega tudo que foi reconhecido
+// antes, e uma marcação nunca é removida, então não há motivo para reenviar a
+// conversa inteira a cada chamada. Menos texto significa resposta mais rápida.
+const MAX_LINES = 12;
+const MAX_ATTEMPTS = 4;
 const RETRY_BASE_MS = 900;
+// Sem limite de tempo, uma chamada travada segura o painel por um minuto e meio.
+const TIMEOUT_MS = 25000;
+// 503 é congestionamento passageiro: insistir no modelo preferido costuma dar
+// certo. Só trocamos depois de várias recusas seguidas, e voltamos depois.
+const OVERLOADS_BEFORE_SWITCH = 3;
+const RETURN_TO_PREFERRED_MS = 120000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -29,9 +38,12 @@ export class PlaybookAnalyzer {
     this.stageIds = playbook.etapas.map((e) => e.id);
     this.questionIds = playbook.etapas.flatMap((e) => e.perguntas.map((p) => p.id));
     this.objectionIds = playbook.objecoes.map((o) => o.id);
-    this.originalModel = model;
+    this.preferredModel = model;
     this.bad = new Set();
     this.switching = null;
+    this.consecutiveOverloads = 0;
+    this.switchedAt = 0;
+    this.lastDurationMs = 0;
     this.systemPrompt = buildSystemPrompt(playbook);
     this.schema = buildSchema(this.stageIds, this.questionIds, this.objectionIds);
   }
@@ -61,20 +73,39 @@ export class PlaybookAnalyzer {
     // 503 e 429 são passageiros: o modelo está congestionado do lado do Google.
     // Repetimos com espera crescente e, se insistir, trocamos para outro modelo
     // rápido da própria conta em vez de desistir.
+    // Se trocamos de modelo por congestionamento, volta ao preferido depois de
+    // um tempo: o modelo preferido costuma ser o mais capaz.
+    if (this.model !== this.preferredModel &&
+        !this.bad.has(this.preferredModel) &&
+        Date.now() - this.switchedAt > RETURN_TO_PREFERRED_MS) {
+      this.model = this.preferredModel;
+      this.consecutiveOverloads = 0;
+    }
+
+    const startedAt = Date.now();
     let lastError;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       try {
         const parsed = await this.callModel(body);
+        this.consecutiveOverloads = 0;
+        this.lastDurationMs = Date.now() - startedAt;
         return this.sanitize(parsed, state);
       } catch (err) {
         lastError = err;
+        this.lastDurationMs = Date.now() - startedAt;
         if (!err.transient) throw err;
-        if (err.badModel || err.overloaded) {
-          // Modelo inexistente ou congestionado: descarta e tenta outro da conta.
+
+        if (err.badModel) {
+          // Modelo inexistente: não adianta insistir, troca na hora.
           this.bad.add(this.model);
-          const switched = await this.switchModel();
-          if (!switched) throw err;
-          continue; // já trocou; tenta de novo sem esperar
+          if (!(await this.switchModel())) throw err;
+          continue;
+        }
+        if (err.overloaded) {
+          this.consecutiveOverloads += 1;
+          if (this.consecutiveOverloads >= OVERLOADS_BEFORE_SWITCH && await this.switchModel()) {
+            continue;
+          }
         }
         if (attempt < MAX_ATTEMPTS - 1) await sleep(RETRY_BASE_MS * 2 ** attempt);
       }
@@ -85,15 +116,23 @@ export class PlaybookAnalyzer {
   async callModel(body) {
     // A chave vai no cabeçalho x-goog-api-key, nunca em "?key=".
     const url = `${API_BASE}/${encodeURIComponent(this.model)}:generateContent`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     let res;
     try {
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.apiKey },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw transient(new Error(`O modelo "${this.model}" demorou mais de ${TIMEOUT_MS / 1000}s para responder.`));
+      }
       throw transient(new Error('Falha de rede ao falar com a Gemini: ' + (err?.message || err)));
+    } finally {
+      clearTimeout(timer);
     }
 
     if (!res.ok) {
@@ -148,6 +187,8 @@ export class PlaybookAnalyzer {
         const next = this.available.find((n) => !this.bad.has(n) && n !== this.model);
         if (!next) return false;
         this.model = next;
+        this.switchedAt = Date.now();
+        this.consecutiveOverloads = 0;
         return true;
       } catch {
         return false;
@@ -156,6 +197,39 @@ export class PlaybookAnalyzer {
       }
     })();
     return this.switching;
+  }
+
+  /**
+   * Resumo e análise da reunião inteira, para o histórico. Best-effort: se
+   * falhar, o histórico é salvo sem resumo.
+   * @param {{speaker: string, text: string}[]} transcript
+   */
+  async summarize(transcript) {
+    const conversa = transcript.map((l) => `[${l.speaker}] ${l.text}`).join('\n');
+    const body = {
+      systemInstruction: { parts: [{ text:
+        'Você analisa reuniões de vendas em português do Brasil. Recebe a transcrição, com falas do VENDEDOR e do LEAD, ' +
+        'e devolve APENAS um JSON. Seja específico e use os fatos ditos na conversa, nunca generalidades. ' +
+        'Nas críticas, seja direto e útil, como um gestor de vendas experiente faria numa devolutiva.' }] },
+      contents: [{ role: 'user', parts: [{ text: `TRANSCRIÇÃO DA REUNIÃO\n${conversa}\n\nDevolva o JSON.` }] }],
+      generationConfig: {
+        temperature: 0.3,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            resumo: { type: 'STRING' },
+            perfil_lead: { type: 'STRING' },
+            dores: { type: 'ARRAY', items: { type: 'STRING' } },
+            pontos_fortes: { type: 'ARRAY', items: { type: 'STRING' } },
+            pontos_a_melhorar: { type: 'ARRAY', items: { type: 'STRING' } },
+            proximos_passos: { type: 'ARRAY', items: { type: 'STRING' } },
+          },
+          required: ['resumo', 'perfil_lead', 'dores', 'pontos_fortes', 'pontos_a_melhorar', 'proximos_passos'],
+        },
+      },
+    };
+    return this.callModel(body);
   }
 
   sanitize(out, state) {
@@ -225,8 +299,8 @@ function buildSystemPrompt(pb) {
     'Fazer o vendedor repetir uma pergunta que ele já fez atrapalha mais do que deixar passar.',
     'Só falas do [VENDEDOR] contam: o lead falar sobre um assunto não marca a pergunta.',
     'Considere as perguntas já marcadas no ESTADO ATUAL e some as novas. Uma vez marcada, a pergunta continua marcada.',
-    'IMPORTANTE: releia a TRANSCRIÇÃO INTEIRA a cada resposta, não apenas as últimas falas, e devolva TODAS as perguntas',
-    'que já foram cobertas em qualquer momento da conversa. Devolver uma lista menor que a anterior é um erro.',
+    'A transcrição abaixo traz só as falas mais recentes: o que foi reconhecido antes já está no ESTADO ATUAL.',
+    'Repita no JSON os ids que já vieram no ESTADO ATUAL e acrescente os novos.',
     '',
     'REGRA 3 - proxima_pergunta',
     'O texto da melhor próxima pergunta para o VENDEDOR fazer agora, priorizando as ainda não feitas da etapa atual.',

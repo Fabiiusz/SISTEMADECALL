@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meet Sales Copilot - Histórico de reuniões</title>
+    <link rel="stylesheet" href="../options/options.css" />
+    <link rel="stylesheet" href="history.css" />
+  </head>
+  <body>
+    <main class="wide">
+      <header class="page-head">
+        <h1>Histórico de reuniões</h1>
+        <button id="clearAll" type="button" class="btn">Apagar tudo</button>
+      </header>
+      <p class="muted" id="count"></p>
+
+      <div class="layout">
+        <aside>
+          <ul id="list" class="call-list"></ul>
+          <p id="empty" class="muted" hidden>
+            Nenhuma reunião salva ainda. Elas são gravadas quando você clica em Parar no painel.
+          </p>
+        </aside>
+        <section id="detail" class="detail" hidden></section>
+      </div>
+    </main>
+    <script type="module" src="history.js"></script>
+  </body>
+</html>

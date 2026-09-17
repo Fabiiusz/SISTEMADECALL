@@ -220,6 +220,8 @@ footer {
 }
 .playbook-line { padding: 8px 14px 0; font-size: 11px; }
 footer a { color: var(--primary); text-decoration: none; font-weight: 600; }
+footer { gap: 10px; }
+.brand-dot.saving { background: #f5c400; }
 
 .counter.pulse { color: var(--primary); animation: blink 0.9s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: 0.35; } }

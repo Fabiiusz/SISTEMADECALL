@@ -42,6 +42,8 @@ const session = {
   analysisInFlight: false,
   analysisPending: false,
   lastAnalysisAt: 0,
+  startedAt: 0,
+  objecoesVistas: [],
   status: { state: 'idle', message: '' },
   channelStatus: { LEAD: 'closed', VENDEDOR: 'closed' },
   variant: { LEAD: '', VENDEDOR: '' },
@@ -59,7 +61,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       });
       return true;
     case 'offscreen:stop':
-      stop().then(() => sendResponse({ ok: true }));
+      stop().then((record) => sendResponse({ ok: true, record }));
       return true;
     case 'offscreen:getState':
       sendResponse(snapshot());
@@ -116,6 +118,7 @@ async function start({ streamId, tabTitle, settings, playbook }) {
     }
     session.playbook = playbook;
     session.tabTitle = tabTitle || '';
+    session.startedAt = Date.now();
     resetConversation();
     setStatus('starting', 'Capturando áudio...');
 
@@ -224,13 +227,61 @@ function attachCapture(stream, speaker, sink) {
 }
 
 async function stop() {
+  const wasRunning = session.running || session.transcript.length > 0;
   session.running = false;
   clearTimeout(session.analysisTimer);
   Object.values(session.partialTimers).forEach(clearTimeout);
   for (const t of Object.values(session.transcribers)) t.close();
   session.transcribers = {};
-  await teardownAudio();
-  setStatus('idle', 'Copiloto parado.');
+  await teardownAudio(); // corta áudio e microfone antes de qualquer espera
+  if (!wasRunning) { setStatus('idle', 'Copiloto parado.'); return null; }
+
+  setStatus('saving', 'Gerando o resumo da reunião...');
+  const record = await buildCallRecord();
+  setStatus('idle', 'Reunião salva no histórico.');
+  return record;
+}
+
+/** Monta o registro da reunião para o service worker salvar. */
+async function buildCallRecord() {
+  const pb = session.playbook;
+  const feitas = new Set(session.analysis?.perguntas_feitas || []);
+  const etapas = (pb?.etapas || []).map((e) => ({
+    id: e.id,
+    nome: e.nome,
+    perguntas: e.perguntas.map((p) => ({ id: p.id, texto: p.texto, feita: feitas.has(p.id) })),
+  }));
+  const totalPerguntas = etapas.reduce((n, e) => n + e.perguntas.length, 0);
+  const etapaFinal = pb?.etapas?.find((e) => e.id === session.analysis?.etapa_atual);
+
+  const record = {
+    id: `call_${session.startedAt || Date.now()}`,
+    startedAt: session.startedAt || Date.now(),
+    endedAt: Date.now(),
+    durationMs: Date.now() - (session.startedAt || Date.now()),
+    titulo: session.tabTitle || 'Reunião no Google Meet',
+    playbookNome: pb?.nome || '',
+    etapaFinalId: session.analysis?.etapa_atual || '',
+    etapaFinalNome: etapaFinal?.nome || '',
+    etapas,
+    totalPerguntas,
+    totalFeitas: feitas.size,
+    objecoes: session.objecoesVistas.slice(),
+    transcript: session.transcript.slice(),
+    resumo: null,
+    resumoErro: null,
+  };
+
+  if (session.analyzer && session.transcript.length >= 2) {
+    try {
+      record.resumo = await session.analyzer.summarize(session.transcript);
+    } catch (err) {
+      record.resumoErro = err?.message || String(err);
+    }
+  } else {
+    record.resumoErro = 'Conversa curta demais para resumir.';
+  }
+  return record;
 }
 
 async function teardownAudio() {
@@ -253,6 +304,7 @@ function resetConversation() {
   session.channelStatus = { LEAD: 'closed', VENDEDOR: 'closed' };
   session.variant = { LEAD: '', VENDEDOR: '' };
   session.attempts = { LEAD: [], VENDEDOR: [] };
+  session.objecoesVistas = [];
 }
 
 // ---------- Transcrição ----------
@@ -345,6 +397,11 @@ async function runAnalysis() {
         previous.objecao_detectada.id === result.objecao_detectada.id &&
         previous.objecao_detectada.resposta_sugerida === result.objecao_detectada.resposta_sugerida;
       result.objecao_detectada.ts = same ? previous.objecao_detectada.ts : Date.now();
+    }
+    // Guarda cada objeção nova para o histórico da reunião.
+    const obj = result.objecao_detectada;
+    if (obj && !session.objecoesVistas.some((o) => o.id === obj.id && o.resposta_sugerida === obj.resposta_sugerida)) {
+      session.objecoesVistas.push({ ...obj });
     }
     session.analysis = result;
     broadcast({ type: 'analysis', analysis: result });

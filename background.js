@@ -6,6 +6,7 @@
 
 import { getSettings } from './shared/settings.js';
 import { loadPlaybook } from './shared/playbook.js';
+import { saveCall } from './shared/history.js';
 
 const OFFSCREEN_URL = 'offscreen/offscreen.html';
 const MEET_HOST = 'meet.google.com';
@@ -72,6 +73,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     'copilot:getContext': async () => {
       const tab = await resolveMeetTab();
       return { ok: true, isMeet: !!tab, tabTitle: tab?.title || '' };
+    },
+    'copilot:openHistory': async () => {
+      await chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
+      return { ok: true };
     },
     'copilot:openPermissionPage': async () => {
       await chrome.tabs.create({ url: chrome.runtime.getURL('permission/permission.html') });
@@ -166,15 +171,19 @@ async function startCopilot() {
 }
 
 async function stopCopilot() {
+  let saved = null;
   if (await hasOffscreenDocument()) {
     try {
-      await chrome.runtime.sendMessage({ target: 'offscreen', type: 'offscreen:stop' });
+      // O offscreen devolve o registro da reunião; ele não pode gravar sozinho
+      // porque não tem acesso a chrome.storage.
+      const res = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'offscreen:stop' });
+      if (res?.record) saved = await saveCall(res.record);
     } catch (e) {
       console.warn('offscreen:stop', e);
     }
     await closeOffscreenDocument();
   }
-  return { ok: true };
+  return { ok: true, saved: !!saved, callId: saved?.id || null };
 }
 
 async function hasOffscreenDocument() {
