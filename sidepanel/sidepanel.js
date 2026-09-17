@@ -132,6 +132,10 @@ function handleStartError(res) {
     showBanner(message, { label: 'Abrir opções', onClick: openOptions });
   } else if (res?.code === 'MIC_DENIED') {
     showBanner(message, { label: 'Conceder microfone', onClick: openPermissionPage });
+  } else if (res?.code === 'NEEDS_INVOKE' || res?.code === 'NO_MEET_TAB') {
+    // Só o clique no ícone da extensão concede activeTab. Não existe botão no
+    // painel capaz de substituir esse gesto, então instruímos o usuário.
+    showBanner(message, null, 'info');
   } else {
     showBanner(message);
   }
@@ -227,6 +231,15 @@ function onMessage(msg) {
       break;
     case 'analysisError':
       showBanner('Análise falhou: ' + msg.message, null, 'info');
+      break;
+    case 'invoked':
+      // O usuário clicou no ícone: a aba acabou de receber activeTab.
+      if (msg.isMeet) {
+        hideBanner();
+        if (!ui.running) el.statusText.textContent = 'Aba do Meet liberada. Clique em Iniciar copiloto.';
+      } else {
+        showBanner('Esta aba não é o Google Meet. Abra a reunião em meet.google.com e clique no ícone da extensão lá.', null, 'info');
+      }
       break;
     default:
       break;

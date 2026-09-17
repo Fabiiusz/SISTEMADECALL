@@ -106,12 +106,11 @@ erro em outra ferramenta, o problema é ela, não a sua chave.
 ## Testar numa chamada do Meet
 
 1. Entre numa reunião em `meet.google.com` (para testar sozinho, abra a reunião em outra conta ou peça a alguém para falar).
-2. Com a **aba do Meet ativa**, clique no ícone da extensão. O painel lateral abre.
-3. Clique em **Iniciar copiloto**.
+2. Com a **aba do Meet à frente**, clique no **ícone da extensão na barra de ferramentas**. O painel lateral abre.
+   Esse clique é obrigatório em toda reunião: ele é o gesto que libera a captura do áudio da aba (veja a nota abaixo).
+3. Clique em **Iniciar copiloto**, dentro do painel.
    - Na primeira vez, o Chrome pede a permissão do **microfone**. Se o pedido não aparecer no painel, uma página da
      extensão abre para você conceder; depois volte ao painel e clique em Iniciar de novo.
-   - O Chrome exige que a extensão tenha sido "invocada" na aba (o clique no ícone faz isso). Se aparecer um aviso sobre
-     isso, clique no ícone da extensão com a aba do Meet aberta e tente de novo.
 4. O indicador no topo fica **verde** ("Ouvindo a reunião") quando as duas conexões com a Gemini estão prontas.
 5. Abra **Transcrição ao vivo** (na parte de baixo do painel) para conferir se o áudio está sendo captado:
    as barrinhas "Lead" e "Você" se mexem com o som, e as falas aparecem rotuladas como `LEAD` e `VENDEDOR`.
@@ -119,6 +118,20 @@ erro em outra ferramenta, o problema é ela, não a sua chave.
 7. Peça para o lead dizer algo como "está caro" ou "vou pensar": o card amarelo de objeção aparece com a resposta
    sugerida. Use o botão de copiar ou o "×" para dispensar.
 8. Clique em **Parar** ao final. A captura da aba e do microfone é encerrada e o offscreen document é fechado.
+
+### Por que o clique no ícone é obrigatório
+
+O Chrome só libera `chrome.tabCapture` para uma aba depois que o usuário "invoca" a extensão nela, por um gesto
+qualificado: clique no ícone da barra de ferramentas, item de menu de contexto, atalho de teclado ou omnibox.
+Clique em botão dentro do painel lateral **não** conta, de propósito, para nenhuma extensão poder gravar uma reunião
+sem um comando explícito seu.
+
+Por isso o `openPanelOnActionClick` fica desligado nesta extensão. Com ele ligado, o Chrome abre o painel sozinho e
+nunca dispara o `action.onClicked`, e sem esse evento a permissão `activeTab` jamais é concedida. O service worker
+abre o painel manualmente dentro do `onClicked`, o que preserva a permissão para o botão Iniciar usar em seguida.
+
+A permissão vale para aquela aba até ela navegar ou fechar. Se você trocar de aba, recarregar o Meet ou entrar em outra
+reunião, clique no ícone de novo antes de iniciar.
 
 **Dica**: use fones de ouvido. Sem eles, o microfone capta a voz do lead saindo dos alto-falantes, e a fala dele pode
 aparecer também como `VENDEDOR`.
@@ -164,7 +177,8 @@ recarregar a extensão.
 | Sem chave da API | Aviso com botão "Abrir opções" |
 | Chave inválida ou sem permissão | Aviso vindo da Gemini (WebSocket ou `generateContent`), com o código 400, 401 ou 403 |
 | Permissão de microfone negada | Aviso com botão "Conceder microfone" (abre a página de permissão) |
-| Aba ativa não é o Meet | Aviso pedindo para ativar a aba `meet.google.com` |
+| Aba ativa não é o Meet | Aviso pedindo para abrir a reunião e clicar no ícone naquela aba |
+| Captura não liberada pelo Chrome | Aviso pedindo o clique no ícone da extensão, que concede `activeTab` |
 | Conexão com a Gemini caiu | Status amarelo "Reconectando..." com retomada de sessão; após 6 tentativas, erro e parada |
 | Modelo não encontrado | Aviso para ajustar o nome do modelo nas opções |
 | Limite de requisições (429) | Aviso; a análise tenta de novo no próximo trecho |

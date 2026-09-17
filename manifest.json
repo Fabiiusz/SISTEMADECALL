@@ -27,7 +27,7 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "Meet Sales Copilot - abrir painel",
+    "default_title": "Meet Sales Copilot - abrir painel e liberar a captura desta aba",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
