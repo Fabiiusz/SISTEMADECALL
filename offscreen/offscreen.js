@@ -35,6 +35,7 @@ const session = {
   analysisPending: false,
   status: { state: 'idle', message: '' },
   channelStatus: { LEAD: 'closed', VENDEDOR: 'closed' },
+  variant: { LEAD: '', VENDEDOR: '' },
   lastLevelSent: { LEAD: 0, VENDEDOR: 0 },
 };
 
@@ -72,6 +73,7 @@ function snapshot() {
     tabTitle: session.tabTitle,
     status: session.status,
     channelStatus: session.channelStatus,
+    variant: session.variant,
     transcript: session.transcript,
     partial: session.partial,
     analysis: session.analysis,
@@ -233,6 +235,7 @@ function resetConversation() {
   session.analysis = null;
   session.analysisPending = false;
   session.channelStatus = { LEAD: 'closed', VENDEDOR: 'closed' };
+  session.variant = { LEAD: '', VENDEDOR: '' };
 }
 
 // ---------- Transcrição ----------
@@ -275,6 +278,7 @@ function flushPartial(speaker) {
 
 function onChannelStatus(speaker, st) {
   session.channelStatus[speaker] = st.state;
+  if (st.variant) session.variant[speaker] = st.variant;
   const states = Object.values(session.channelStatus);
   if (states.every((s) => s === 'ready')) {
     setStatus('listening', 'Ouvindo a reunião.');

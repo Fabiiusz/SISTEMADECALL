@@ -429,6 +429,7 @@ async function copyDiagnostics(event) {
     const st = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'offscreen:getState' });
     lines.push(`Captura ativa: ${st?.running ? 'sim' : 'não'}`);
     if (st?.channelStatus) lines.push(`Conexões Gemini: LEAD=${st.channelStatus.LEAD}, VENDEDOR=${st.channelStatus.VENDEDOR}`);
+    if (st?.variant) lines.push(`Configuração aceita: LEAD="${st.variant.LEAD || '-'}", VENDEDOR="${st.variant.VENDEDOR || '-'}"`);
     lines.push(`Falas transcritas: ${st?.transcript?.length ?? 0}`);
   } catch {
     lines.push('Captura ativa: não (documento de captura fechado)');

@@ -198,6 +198,14 @@ a chave, os modelos e o `playbook.json`, e entrega tudo pronto na mensagem `offs
 No rodapé do painel existe o link **Copiar diagnóstico**. Ele copia versão, status, estado das conexões e os últimos
 avisos exibidos, sem incluir a chave da API. Use isso ao relatar um problema, em vez de procurar erros no DevTools.
 
+### Escada de configurações da Live API
+
+O servidor da Live API responde `Internal error encountered` quando algum campo do `setup` não serve para o modelo
+escolhido, sem dizer qual campo é. Para não depender de tentativa e erro manual, `offscreen/gemini-live.js` mantém uma
+escada de configurações, da mais desejável para a mais simples, e tenta a próxima sempre que a conexão cai antes do
+`setupComplete`. A primeira que funcionar fica travada para as reconexões seguintes e aparece no diagnóstico do painel,
+em "Configuração aceita". A última tentativa troca o modelo por `gemini-3.5-transcribe-live`.
+
 ## Ponto ainda não confirmado em uso real
 
 O navegador não deixa definir cabeçalhos numa conexão WebSocket, então a sessão da Live API manda a chave na query
