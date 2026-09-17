@@ -36,6 +36,7 @@ const session = {
   status: { state: 'idle', message: '' },
   channelStatus: { LEAD: 'closed', VENDEDOR: 'closed' },
   variant: { LEAD: '', VENDEDOR: '' },
+  attempts: { LEAD: [], VENDEDOR: [] },
   lastLevelSent: { LEAD: 0, VENDEDOR: 0 },
 };
 
@@ -74,6 +75,7 @@ function snapshot() {
     status: session.status,
     channelStatus: session.channelStatus,
     variant: session.variant,
+    attempts: session.attempts,
     transcript: session.transcript,
     partial: session.partial,
     analysis: session.analysis,
@@ -167,7 +169,11 @@ async function start({ streamId, tabTitle, settings, playbook }) {
     }
     session.running = true;
     setStatus('connecting', 'Conectando à Gemini...');
-    Object.values(session.transcribers).forEach((t) => t.connect());
+    // Um pequeno intervalo entre as duas sessões, para não abrir as duas no
+    // mesmo instante com a mesma chave.
+    Object.values(session.transcribers).forEach((t, i) => {
+      setTimeout(() => { if (session.running) t.connect(); }, i * 400);
+    });
 
     // Estado inicial da análise, para o painel já mostrar a primeira etapa.
     session.analysis = {
@@ -236,6 +242,7 @@ function resetConversation() {
   session.analysisPending = false;
   session.channelStatus = { LEAD: 'closed', VENDEDOR: 'closed' };
   session.variant = { LEAD: '', VENDEDOR: '' };
+  session.attempts = { LEAD: [], VENDEDOR: [] };
 }
 
 // ---------- Transcrição ----------
@@ -279,6 +286,7 @@ function flushPartial(speaker) {
 function onChannelStatus(speaker, st) {
   session.channelStatus[speaker] = st.state;
   if (st.variant) session.variant[speaker] = st.variant;
+  if (st.attempts) session.attempts[speaker] = st.attempts.slice();
   const states = Object.values(session.channelStatus);
   if (states.every((s) => s === 'ready')) {
     setStatus('listening', 'Ouvindo a reunião.');

@@ -11,6 +11,7 @@ const WS_HOST = 'wss://generativelanguage.googleapis.com';
 const FALLBACK_MODEL = 'gemini-3.5-transcribe-live';
 const MAX_RETRIES = 6;
 const VARIANT_RETRY_MS = 400;
+const SESSION_PROOF_MS = 20000;
 
 export class GeminiLiveTranscriber {
   constructor(opts) {
@@ -23,8 +24,10 @@ export class GeminiLiveTranscriber {
 
     this.variants = buildVariants(this.model);
     this.variantIndex = 0;
-    this.variantLocked = false;
-    this.failures = [];
+    this.variantProven = false;   // só true depois que a sessão se prova estável
+    this.attempts = [];           // histórico para o diagnóstico do painel
+    this.readyAt = 0;
+    this.gotContent = false;
 
     this.ws = null;
     this.ready = false;
@@ -50,10 +53,12 @@ export class GeminiLiveTranscriber {
     this.ready = false;
 
     const variant = this.variant;
+    this.readyAt = 0;
+    this.gotContent = false;
     this.onStatus({
       state: 'connecting',
-      variant: variant.label,
-      message: this.variantLocked
+      attempts: this.attempts,
+      message: this.variantProven
         ? (this.retries ? `Reconectando (${this.retries}/${MAX_RETRIES})...` : 'Conectando...')
         : `Testando configuração "${variant.label}"...`,
     });
@@ -76,32 +81,45 @@ export class GeminiLiveTranscriber {
     ws.onclose = (event) => {
       if (this.ws !== ws) return;
       this.ws = null;
+      const wasReady = this.ready;
       this.ready = false;
       if (this.closedByUser) { this.onStatus({ state: 'closed' }); return; }
 
       const reason = (event.reason || '').trim() || `código ${event.code}`;
+      const aliveMs = this.readyAt ? Date.now() - this.readyAt : 0;
 
-      // Ainda não conseguimos conectar nenhuma vez: é a configuração que está
-      // sendo recusada, então passamos para a próxima da escada.
-      if (!this.variantLocked) {
-        this.failures.push(`${variant.label}: ${reason}`);
-        if (looksLikeAuthError(event.code, reason)) {
-          this.onFatal(new Error(`A Gemini recusou a chave da API (${reason}). Verifique a chave nas opções.`));
-          return;
-        }
+      if (looksLikeAuthError(event.code, reason)) {
+        this.onFatal(new Error(`A Gemini recusou a chave da API (${reason}). Verifique a chave nas opções.`));
+        return;
+      }
+
+      // Aceitar o setup não prova nada: o servidor costuma aceitar a
+      // configuração e só derrubar a sessão quando o áudio começa a chegar.
+      // Uma variante só é considerada boa se transcreveu algo ou se sobreviveu
+      // SESSION_PROOF_MS. Caso contrário, passamos para a próxima da escada.
+      if (!this.variantProven && !this.goAwayPending) {
+        const phase = wasReady
+          ? `caiu ${(aliveMs / 1000).toFixed(1)}s depois de conectar`
+          : 'recusada no setup';
+        this.attempts.push(`${variant.label} [${variant.model} ${variant.apiVersion}]: ${phase} (${reason})`);
+
         if (this.variantIndex < this.variants.length - 1) {
           this.variantIndex += 1;
-          this.onStatus({ state: 'connecting', message: `Configuração "${variant.label}" recusada (${reason}). Tentando outra...` });
+          this.onStatus({
+            state: 'connecting',
+            attempts: this.attempts,
+            message: `Configuração "${variant.label}" não serviu. Testando a próxima...`,
+          });
           this.reconnectTimer = setTimeout(() => this.connect(), VARIANT_RETRY_MS);
           return;
         }
         this.onFatal(new Error(
-          'Nenhuma configuração da Live API foi aceita. Tentativas: ' + this.failures.join(' | '),
+          'Nenhuma configuração da Live API funcionou. Tentativas: ' + this.attempts.join(' | '),
         ));
         return;
       }
 
-      // Já funcionou antes: queda de rede comum, reconecta com espera crescente.
+      // Variante já provada: queda de rede comum, reconecta com espera crescente.
       if (this.retries >= MAX_RETRIES) {
         this.onFatal(new Error(`Conexão com a Gemini caiu (${reason}) e não foi possível reconectar.`));
         return;
@@ -109,9 +127,17 @@ export class GeminiLiveTranscriber {
       const delay = this.goAwayPending ? 200 : Math.min(16000, 1000 * 2 ** this.retries);
       this.goAwayPending = false;
       this.retries += 1;
-      this.onStatus({ state: 'reconnecting', message: `Conexão caiu (${reason}). Reconectando em ${Math.round(delay / 1000)}s...` });
+      this.onStatus({ state: 'reconnecting', attempts: this.attempts, message: `Conexão caiu (${reason}). Reconectando em ${Math.round(delay / 1000)}s...` });
       this.reconnectTimer = setTimeout(() => this.connect(), delay);
     };
+  }
+
+  markProven() {
+    if (this.variantProven) return;
+    this.gotContent = true;
+    this.variantProven = true;
+    clearTimeout(this.proofTimer);
+    this.onStatus({ state: 'ready', variant: this.variantLabel, attempts: this.attempts });
   }
 
   buildSetup() {
@@ -119,7 +145,7 @@ export class GeminiLiveTranscriber {
     const setup = { model: `models/${v.model}` };
     if (v.generationConfig) setup.generationConfig = v.generationConfig;
     if (v.inputAudioTranscription) setup.inputAudioTranscription = v.inputAudioTranscription;
-    if (this.variantLocked && this.resumeHandle) setup.sessionResumption = { handle: this.resumeHandle };
+    if (this.variantProven && this.resumeHandle) setup.sessionResumption = { handle: this.resumeHandle };
     return { setup };
   }
 
@@ -127,9 +153,12 @@ export class GeminiLiveTranscriber {
     if (msg.setupComplete) {
       this.ready = true;
       this.everConnected = true;
-      this.variantLocked = true; // esta configuração serve; não mexer mais
+      this.readyAt = Date.now();
       this.retries = 0;
-      this.onStatus({ state: 'ready', variant: this.variantLabel });
+      // Se a sessão sobreviver a este tempo, a configuração é boa de verdade.
+      clearTimeout(this.proofTimer);
+      this.proofTimer = setTimeout(() => this.markProven(), SESSION_PROOF_MS);
+      this.onStatus({ state: 'ready', variant: this.variantLabel, attempts: this.attempts });
       return;
     }
     if (msg.sessionResumptionUpdate) {
@@ -143,6 +172,7 @@ export class GeminiLiveTranscriber {
     }
     const content = msg.serverContent;
     if (!content) return;
+    this.markProven();
 
     const t = content.inputTranscription;
     if (t && typeof t.text === 'string' && t.text.length) {
@@ -165,6 +195,7 @@ export class GeminiLiveTranscriber {
   close() {
     this.closedByUser = true;
     clearTimeout(this.reconnectTimer);
+    clearTimeout(this.proofTimer);
     const ws = this.ws;
     this.ws = null;
     this.ready = false;
@@ -183,17 +214,16 @@ function buildVariants(model) {
     { label: 'texto', apiVersion: 'v1beta', model, generationConfig: { responseModalities: ['TEXT'] }, inputAudioTranscription: {} },
     { label: 'áudio', apiVersion: 'v1beta', model, generationConfig: { responseModalities: ['AUDIO'] }, inputAudioTranscription: {} },
     { label: 'sem generationConfig', apiVersion: 'v1beta', model, generationConfig: null, inputAudioTranscription: {} },
-    { label: 'v1alpha', apiVersion: 'v1alpha', model, generationConfig: { responseModalities: ['TEXT'] }, inputAudioTranscription: {} },
   ];
   if (model !== FALLBACK_MODEL) {
-    list.push({
-      label: `modelo ${FALLBACK_MODEL}`,
-      apiVersion: 'v1beta',
-      model: FALLBACK_MODEL,
-      generationConfig: { responseModalities: ['TEXT'] },
-      inputAudioTranscription: {},
-    });
+    list.push(
+      { label: 'modelo de transcrição, texto', apiVersion: 'v1beta', model: FALLBACK_MODEL, generationConfig: { responseModalities: ['TEXT'] }, inputAudioTranscription: {} },
+      { label: 'modelo de transcrição, simples', apiVersion: 'v1beta', model: FALLBACK_MODEL, generationConfig: null, inputAudioTranscription: {} },
+    );
   }
+  list.push(
+    { label: 'v1alpha texto', apiVersion: 'v1alpha', model, generationConfig: { responseModalities: ['TEXT'] }, inputAudioTranscription: {} },
+  );
   return list;
 }
 
