@@ -55,6 +55,23 @@ async function init() {
 
   await loadAndRenderPlaybook();
   await restoreFromOffscreen();
+  await refreshContext();
+}
+
+// A mensagem 'invoked' pode chegar antes do painel terminar de carregar, então
+// ao abrir perguntamos o estado direto ao service worker.
+async function refreshContext() {
+  if (ui.running) return;
+  try {
+    const res = await chrome.runtime.sendMessage({ target: 'background', type: 'copilot:getContext' });
+    if (res?.ok) {
+      el.statusText.textContent = res.isMeet
+        ? 'Aba do Meet liberada. Clique em Iniciar copiloto.'
+        : 'Abra a aba do Meet e clique no ícone da extensão nela.';
+    }
+  } catch (err) {
+    console.warn('getContext', err);
+  }
 }
 
 async function loadAndRenderPlaybook() {

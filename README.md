@@ -130,6 +130,10 @@ Por isso o `openPanelOnActionClick` fica desligado nesta extensão. Com ele liga
 nunca dispara o `action.onClicked`, e sem esse evento a permissão `activeTab` jamais é concedida. O service worker
 abre o painel manualmente dentro do `onClicked`, o que preserva a permissão para o botão Iniciar usar em seguida.
 
+Uma armadilha ao implementar isso: `chrome.sidePanel.open()` precisa ser chamado enquanto o gesto do usuário ainda
+está válido. Qualquer `await` antes dele, mesmo um `chrome.storage.session.set`, encerra o gesto e o Chrome recusa a
+abertura do painel. Por isso o `onClicked` desta extensão não é `async` e chama o `open()` na primeira instrução.
+
 A permissão vale para aquela aba até ela navegar ou fechar. Se você trocar de aba, recarregar o Meet ou entrar em outra
 reunião, clique no ícone de novo antes de iniciar.
 

@@ -28,17 +28,33 @@ chrome.runtime.onStartup.addListener(resetPanelBehavior);
 // O clique no ícone é o "gesto qualificado" que concede activeTab para a aba.
 // A concessão vale até a aba navegar, então o botão "Iniciar copiloto" do painel
 // consegue usá-la logo em seguida. Cliques dentro do painel NÃO concedem nada.
-chrome.action.onClicked.addListener(async (tab) => {
+//
+// ATENÇÃO: chrome.sidePanel.open() só funciona enquanto o gesto do usuário
+// continua válido. Qualquer await antes dele, inclusive um storage.session.set,
+// encerra o gesto e o Chrome recusa a abertura com "may only be called in
+// response to a user gesture". Por isso o listener NÃO é async e o open() é a
+// primeira instrução; o resto do trabalho vai para uma função assíncrona.
+chrome.action.onClicked.addListener((tab) => {
   if (tab?.id !== undefined) {
-    try { await chrome.storage.session.set({ [INVOKED_TAB_KEY]: tab.id }); } catch (e) { console.warn(e); }
-    try { await chrome.sidePanel.open({ tabId: tab.id }); } catch (e) { console.error('sidePanel.open', e); }
+    chrome.sidePanel.open({ tabId: tab.id }).catch((err) => console.error('sidePanel.open', err));
+  }
+  void rememberInvokedTab(tab);
+});
+
+async function rememberInvokedTab(tab) {
+  if (tab?.id !== undefined) {
+    try {
+      await chrome.storage.session.set({ [INVOKED_TAB_KEY]: tab.id });
+    } catch (err) {
+      console.warn('storage.session', err);
+    }
   }
   chrome.runtime.sendMessage({
     target: 'sidepanel',
     type: 'invoked',
     isMeet: hostOf(tab?.url) === MEET_HOST,
-  }).catch(() => { /* painel ainda abrindo */ });
-});
+  }).catch(() => { /* painel ainda abrindo; ele consulta o contexto ao carregar */ });
+}
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || msg.target !== 'background') return false;
@@ -49,6 +65,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     'copilot:openOptions': async () => {
       await chrome.runtime.openOptionsPage();
       return { ok: true };
+    },
+    'copilot:getContext': async () => {
+      const tab = await resolveMeetTab();
+      return { ok: true, isMeet: !!tab, tabTitle: tab?.title || '' };
     },
     'copilot:openPermissionPage': async () => {
       await chrome.tabs.create({ url: chrome.runtime.getURL('permission/permission.html') });
